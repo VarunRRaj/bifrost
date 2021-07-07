@@ -9,14 +9,15 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 class Bifrost
 {
 public:
   // For the host system to start a container
-  static std::unique_ptr<Bifrost> Outside(const std::string& img, 
-                                          const std::string& jf_mc_path="", 
-                                          const std::string& jf_data_path="")
+  static std::unique_ptr<Bifrost> Outside(const std::string& img,
+                                          const std::string& jf_mc_path = "",
+                                          const std::string& jf_data_path = "")
   {
     return std::unique_ptr<Bifrost>(new Bifrost(img, jf_mc_path, jf_data_path));
   }
@@ -40,7 +41,7 @@ public:
   Bifrost(const Bifrost&) = delete;
   Bifrost& operator=(const Bifrost&) = delete;
 protected:
-  Bifrost(const std::string& img, const std::string& jf_mc="", const std::string& jf_data="");
+  Bifrost(const std::string& img, const std::string& jf_mc = "", const std::string& jf_data = "");
   Bifrost();
 
   template<class T> void TypeCheck();
@@ -84,6 +85,14 @@ Bifrost::Bifrost(const std::string& img, const std::string& jf_mc, const std::st
     abort();
   }
 
+  struct stat buf;
+  if(stat(img.c_str(), &buf) != 0){
+    std::cout << "Bifrost::Outside(): Container not found at path '" << img << "'" << std::endl;
+    abort();
+  } else {
+    std::cout << "Bifrost::Outside(): Container path is valid." << std::endl;
+  }
+
   if(fork() == 0){
     // Now in the child process
     std::cout << "Bifrost: Outside: starting " << img << std::endl;
@@ -93,8 +102,8 @@ Bifrost::Bifrost(const std::string& img, const std::string& jf_mc, const std::st
     std::vector<const char*> args = {"singularity", "run", "--cleanenv",
                                      "-B", mount.c_str()};
 
-    
-    std::string mc_dir; // mc_dir must be at this scope to be added to args
+    // Must not go out of scope until after the execvp() call
+    std::string mc_dir;
     if(!jf_mc.empty()){
       args.push_back("-B");
       mc_dir = jf_mc+":/jf_mc";
@@ -109,7 +118,7 @@ Bifrost::Bifrost(const std::string& img, const std::string& jf_mc, const std::st
     }
 
     args.push_back(img.c_str());
-    
+
     args.push_back(0); // null terminate
 
     // In NOvA setup gcc puts something bad in $LD_LIBRARY_PATH that breaks
